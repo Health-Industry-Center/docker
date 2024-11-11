@@ -1,0 +1,75 @@
+---
+- name: Add Docker GPG apt Key Debian
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: Add Docker Repository Debian
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu jammy stable
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: Add Docker Repository RedHat
+  command: dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+  when: ansible_os_family == 'RedHat'
+
+- name: Update apt and install docker Debian
+  apt:
+    name: "{{ item }}"
+    state: latest 
+    update_cache: yes 
+    install_recommends: yes
+  environment:
+    - NEEDRESTART_MODE: automatically
+  with_items:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+  when: ansible_os_family == 'Debian'
+
+- name: Update apt and install docker RedHat
+  dnf:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  with_items:
+  - docker-ce
+  - docker-ce-cli
+  -  containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+  when: ansible_os_family == 'RedHat'
+
+- name: Ensure docker service is started
+  service:
+    name: docker
+    state: started
+
+- name: Add student user to the docker group
+  user:
+    name: "{{ deploy_user }}"
+    groups: docker
+    append: yes
+
+- name: Set permissions for Docker socket
+  file:
+    path: /var/run/docker.sock
+    mode: "0666"
+    owner: root
+    group: docker
+
+- name: Install Docker Module for Python
+  pip:
+    name: "{{ item }}"
+    executable: pip3
+    extra_args: "--break-system-packages"
+    state: forcereinstall
+  with_items:
+  - "docker"
+  - "docker-compose"
+  - "requests==2.25.1"
+  ignore_errors: true
